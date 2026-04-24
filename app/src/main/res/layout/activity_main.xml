@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:gravity="center"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/tvCountUpdate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="40dp"
+        android:textSize="24sp"
+        android:textColor="@color/black"
+        android:textStyle="bold"
+        android:text="123"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnStartService"
+        android:layout_width="wrap_content"
+        android:layout_height="52dp"
+        android:minWidth="200dp"
+        app:cornerRadius="100dp"
+        android:backgroundTint="#29B6F6"
+        android:text="Start Service"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnStopService"
+        android:layout_width="wrap_content"
+        android:layout_height="52dp"
+        android:minWidth="200dp"
+        app:cornerRadius="100dp"
+        android:backgroundTint="#FFA726"
+        android:text="Stop Service"/>
+
+</androidx.appcompat.widget.LinearLayoutCompat>

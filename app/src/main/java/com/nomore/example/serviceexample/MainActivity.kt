@@ -7,7 +7,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.nomore.example.serviceexample.databinding.ActivityMainBinding
 import com.nomore.example.serviceexample.service.CounterService
-import com.nomore.example.serviceexample.utils.CounterPreference
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,12 +18,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         initView()
         initAction()
-        updateCounterDisplay()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        updateCounterDisplay()
     }
 
     private fun initAction() {
@@ -43,10 +36,5 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-    }
-
-    private fun updateCounterDisplay() {
-        val counter = CounterPreference.getCounter(this)
-        binding.tvCountUpdate.text = counter.toString()
     }
 }

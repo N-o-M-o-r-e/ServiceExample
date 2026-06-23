@@ -10,16 +10,6 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/tvCountUpdate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="40dp"
-        android:textSize="24sp"
-        android:textColor="@color/black"
-        android:textStyle="bold"
-        android:text="123"/>
-
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnStartService"
         android:layout_width="wrap_content"

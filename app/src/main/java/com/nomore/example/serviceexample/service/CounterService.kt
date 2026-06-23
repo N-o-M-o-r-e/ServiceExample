@@ -1,124 +1,194 @@
 package com.nomore.example.serviceexample.service
 
-import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
-import androidx.core.app.NotificationCompat
+import android.util.Log
+import android.widget.RemoteViews
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.nomore.example.serviceexample.MainActivity
 import com.nomore.example.serviceexample.R
-import com.nomore.example.serviceexample.receiver.StartCounterReceiver
-import com.nomore.example.serviceexample.utils.CounterPreference
+import com.nomore.example.serviceexample.widget.CounterWidget
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.TickerMode
+import kotlinx.coroutines.channels.ticker
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import android.os.Build.VERSION
-import android.os.Build.VERSION_CODES
 
 class CounterService : LifecycleService() {
 
+    private var counter = 0
+    private var counterJob: Job? = null
+    private val screenState = MutableStateFlow(true)
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_ON -> screenState.value = true
+                Intent.ACTION_SCREEN_OFF -> screenState.value = false
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
         createNotificationChannel()
-        startForegroundService()
-        startCounter()
+        startForegroundCompat()
+        registerScreenReceiver()
+        setupIntervalFlow()
+    }
+
+    private fun setupIntervalFlow() {
+        lifecycleScope.launch {
+            screenState
+                .flatMapLatest { screenOn ->
+                    if (screenOn) intervalFlow(200L) else emptyFlow()
+                }
+                .collect {
+                    counter++
+                    Log.d(TAG, "counter: $counter (intervalFlow)")
+                    updateNotification()
+                    updateWidget()
+                }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        Log.d(TAG, "onStartCommand")
         return START_STICKY
     }
 
-    private fun startCounter() {
-        lifecycleScope.launch {
-            while (isActive) {
-                delay(3000L)
-                val currentCount = CounterPreference.getCounter(this@CounterService)
-                val newCount = currentCount + 1
-                CounterPreference.saveCounter(this@CounterService, newCount)
-                android.util.Log.d("CounterService", "Counter updated: $newCount")
-            }
-        }
-    }
-
-    private fun createNotificationChannel() {
-        if (VERSION.SDK_INT >= VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-    }
-
-    @SuppressLint("ForegroundServiceType")
-    private fun startForegroundService() {
-        runCatching {
-            val notification = createNotification()
-            if (VERSION.SDK_INT >= VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceCompat.startForeground(
-                    this,
-                    NOTIFICATION_ID,
-                    notification,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                )
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        }
-    }
-
-    private fun createNotification(): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            notificationIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Counter Service")
-            .setContentText("Counter is running...")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentIntent(pendingIntent)
-            .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "onTaskRemoved — restarting")
+        startForegroundService(Intent(applicationContext, CounterService::class.java))
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        android.util.Log.d("CounterService", "Service destroyed")
+        try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
+        Log.d(TAG, "onDestroy")
+    }
+
+
+    private fun registerScreenReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            priority = 1000
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenReceiver, filter)
+        }
+    }
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID, "Counter Service", NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            setSound(null, null)
+            enableVibration(false)
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    private fun startForegroundCompat() {
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this, NOTIFICATION_ID, notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun buildNotification(count: Int = counter): Notification {
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("Counter Service")
+            .setContentText("Counter: $count")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .build()
+    }
+
+    private fun updateNotification() {
+        val notification = buildNotification()
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun updateWidget() {
+        try {
+            val appWidgetManager = AppWidgetManager.getInstance(this)
+            val componentName = ComponentName(this, CounterWidget::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+
+            if (appWidgetIds.isNotEmpty()) {
+                val views = RemoteViews(packageName, R.layout.widget_counter)
+                views.setTextViewText(R.id.tv_counter_widget, "Counter: $counter")
+
+                for (appWidgetId in appWidgetIds) {
+                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                }
+                Log.d(TAG, "Widget updated: counter=$counter")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating widget", e)
+        }
     }
 
     companion object {
+        private const val TAG = "__CounterService"
         private const val NOTIFICATION_ID = 101
         private const val CHANNEL_ID = "counter_channel"
-        private const val CHANNEL_NAME = "Counter Service Channel"
 
         fun startService(context: Context) {
-            runCatching {
-                ContextCompat.startForegroundService(
-                    context,
-                    Intent(context, CounterService::class.java)
-                )
-            }
+            Log.d(TAG, "startService called")
+            ContextCompat.startForegroundService(
+                context, Intent(context, CounterService::class.java)
+            )
         }
 
         fun stopService(context: Context) {
+            Log.d(TAG, "stopService called")
             context.stopService(Intent(context, CounterService::class.java))
         }
+    }
+}
+
+fun intervalFlow(intervalMillis: Long): Flow<Unit> = channelFlow {
+    while (isActive) {
+        send(Unit)
+        delay(intervalMillis)
     }
 }

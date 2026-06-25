@@ -1,31 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    android:gravity="center"
-    android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnStartService"
-        android:layout_width="wrap_content"
-        android:layout_height="52dp"
-        android:minWidth="200dp"
-        app:cornerRadius="100dp"
-        android:backgroundTint="#29B6F6"
-        android:text="Start Service"/>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnStopService"
-        android:layout_width="wrap_content"
-        android:layout_height="52dp"
-        android:minWidth="200dp"
-        app:cornerRadius="100dp"
-        android:backgroundTint="#FFA726"
-        android:text="Stop Service"/>
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Service Control"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-</androidx.appcompat.widget.LinearLayoutCompat>
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchService"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:minHeight="48dp"
+            android:text="Counter Service" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Permissions"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchNotification"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:minHeight="48dp"
+            android:text="Notification Permission" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchBatteryOptimization"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:minHeight="48dp"
+            android:text="Battery Optimization (Whitelist)" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/tvBatteryHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="24dp"
+            android:text="Tắt tối ưu hóa pin để service hoạt động ổn định"
+            android:textColor="?android:textColorSecondary"
+            android:textSize="12sp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Service: OFF"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

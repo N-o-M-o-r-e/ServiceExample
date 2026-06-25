@@ -1,5 +1,6 @@
 package com.nomore.example.serviceexample.service
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,24 +21,19 @@ import androidx.lifecycle.lifecycleScope
 import com.nomore.example.serviceexample.MainActivity
 import com.nomore.example.serviceexample.R
 import com.nomore.example.serviceexample.widget.CounterWidget
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.TickerMode
-import kotlinx.coroutines.channels.ticker
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class CounterService : LifecycleService() {
 
     private var counter = 0
-    private var counterJob: Job? = null
     private val screenState = MutableStateFlow(true)
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -49,24 +45,16 @@ class CounterService : LifecycleService() {
         }
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.d(TAG, "onCreate")
-        createNotificationChannel()
-        startForegroundCompat()
-        registerScreenReceiver()
-        setupIntervalFlow()
-    }
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun setupIntervalFlow() {
         lifecycleScope.launch {
             screenState
                 .flatMapLatest { screenOn ->
-                    if (screenOn) intervalFlow(200L) else emptyFlow()
+                    if (screenOn) intervalFlow(1000L) else emptyFlow()
                 }
                 .collect {
                     counter++
-                    Log.d(TAG, "counter: $counter (intervalFlow)")
+                    Log.d(TAG, "counter: $counter")
                     updateNotification()
                     updateWidget()
                 }
@@ -78,19 +66,6 @@ class CounterService : LifecycleService() {
         Log.d(TAG, "onStartCommand")
         return START_STICKY
     }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-        Log.d(TAG, "onTaskRemoved — restarting")
-        startForegroundService(Intent(applicationContext, CounterService::class.java))
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
-        Log.d(TAG, "onDestroy")
-    }
-
 
     private fun registerScreenReceiver() {
         val filter = IntentFilter().apply {
@@ -106,13 +81,15 @@ class CounterService : LifecycleService() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID, "Counter Service", NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            setSound(null, null)
-            enableVibration(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID, "Counter Service", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                setSound(null, null)
+                enableVibration(false)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun startForegroundCompat() {
@@ -133,7 +110,13 @@ class CounterService : LifecycleService() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return Notification.Builder(this, CHANNEL_ID)
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        return builder
             .setContentTitle("Counter Service")
             .setContentText("Counter: $count")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -167,11 +150,33 @@ class CounterService : LifecycleService() {
         }
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        isRunning = true
+        Log.d(TAG, "onCreate")
+        createNotificationChannel()
+        startForegroundCompat()
+        registerScreenReceiver()
+        setupIntervalFlow()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
+        try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
+        Log.d(TAG, "onDestroy")
+    }
+
     companion object {
         private const val TAG = "__CounterService"
         private const val NOTIFICATION_ID = 101
         private const val CHANNEL_ID = "counter_channel"
 
+        @Volatile
+        var isRunning = false
+            private set
+
+        @SuppressLint("ForegroundServiceType")
         fun startService(context: Context) {
             Log.d(TAG, "startService called")
             ContextCompat.startForegroundService(

@@ -5,7 +5,7 @@
     android:minHeight="110dp"
     android:minWidth="110dp"
     android:previewImage="@drawable/ic_launcher_foreground"
-    android:resizeMode="none"
+    android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="2"
     android:updatePeriodMillis="0"

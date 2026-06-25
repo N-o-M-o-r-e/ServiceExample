@@ -20,6 +20,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.nomore.example.serviceexample.MainActivity
 import com.nomore.example.serviceexample.R
+import com.nomore.example.serviceexample.utils.CounterDataStore
 import com.nomore.example.serviceexample.widget.CounterWidget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -34,6 +35,22 @@ import kotlinx.coroutines.launch
 class CounterService : LifecycleService() {
 
     private var counter = 0
+
+    private fun formatDuration(seconds: Int): String {
+        val days = seconds / 86400
+        val hours = (seconds % 86400) / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+        return if (days > 0) {
+            "${days}d ${hours}h ${minutes}m ${secs}s"
+        } else if (hours > 0) {
+            "${hours}h ${minutes}m ${secs}s"
+        } else if (minutes > 0) {
+            "${minutes}m ${secs}s"
+        } else {
+            "${secs}s"
+        }
+    }
     private val screenState = MutableStateFlow(true)
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -54,9 +71,12 @@ class CounterService : LifecycleService() {
                 }
                 .collect {
                     counter++
-                    Log.d(TAG, "counter: $counter")
+                    Log.d(TAG, "count=$counter (${formatDuration(counter)})")
                     updateNotification()
                     updateWidget()
+                    if (counter % 10 == 0) {
+                        CounterDataStore.saveCounter(this@CounterService, counter)
+                    }
                 }
         }
     }
@@ -118,7 +138,7 @@ class CounterService : LifecycleService() {
         }
         return builder
             .setContentTitle("Counter Service")
-            .setContentText("Counter: $count")
+            .setContentText(formatDuration(count))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -138,12 +158,12 @@ class CounterService : LifecycleService() {
 
             if (appWidgetIds.isNotEmpty()) {
                 val views = RemoteViews(packageName, R.layout.widget_counter)
-                views.setTextViewText(R.id.tv_counter_widget, "Counter: $counter")
+                views.setTextViewText(R.id.tv_counter_widget, formatDuration(counter))
 
                 for (appWidgetId in appWidgetIds) {
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
-                Log.d(TAG, "Widget updated: counter=$counter")
+                Log.d(TAG, "Widget updated, count=$counter")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating widget", e)
@@ -157,13 +177,27 @@ class CounterService : LifecycleService() {
         createNotificationChannel()
         startForegroundCompat()
         registerScreenReceiver()
+        restoreCounter()
         setupIntervalFlow()
+    }
+
+    private fun restoreCounter() {
+        lifecycleScope.launch {
+            counter = CounterDataStore.getCounter(this@CounterService)
+            Log.d(TAG, "Restored count=$counter")
+            updateNotification()
+            updateWidget()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
         try { unregisterReceiver(screenReceiver) } catch (_: Exception) {}
+        lifecycleScope.launch {
+            CounterDataStore.saveCounter(this@CounterService, counter)
+            Log.d(TAG, "Saved count=$counter")
+        }
         Log.d(TAG, "onDestroy")
     }
 
